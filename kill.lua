@@ -1,10 +1,8 @@
 -- ============================================================
--- PRISON LIFE KILL v1.0
--- Убийство игроков кликом (для Prison Life)
--- GitHub Version
+-- PRISON LIFE KILL v2.0 (УБИВАЕТ ПОЛНОСТЬЮ)
 -- ============================================================
 
-print("=== ЗАГРУЗКА PRISON LIFE KILL ===")
+print("=== ЗАГРУЗКА PRISON LIFE KILL v2.0 ===")
 
 -- ============================================================
 -- СЛУЖБЫ
@@ -14,65 +12,71 @@ local UserInput = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local LP = Players.LocalPlayer
 
--- Ждём загрузку
 repeat task.wait() until LP and LP.Character
 print("✅ Игра загружена")
 
 -- ============================================================
--- ПРОВЕРКА НА МЫШЬ
+-- ПОИСК ВСЕХ RemoteEvent ДЛЯ УБИЙСТВА
 -- ============================================================
-local mouse = LP:GetMouse()
-if not mouse then
-    print("❌ Не удалось получить мышь!")
-    return
-end
-print("✅ Мышь получена")
+local AttackEvents = {}
 
--- ============================================================
--- ПОИСК remoteEvent для убийства
--- ============================================================
-local meleeEvent = nil
-
--- Ищем в ReplicatedStorage
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-for _, child in pairs(ReplicatedStorage:GetChildren()) do
-    if child:IsA("RemoteEvent") and (child.Name:lower():find("melee") or child.Name:lower():find("hit") or child.Name:lower():find("attack")) then
-        meleeEvent = child
-        print("✅ Найден RemoteEvent:", child.Name)
-        break
-    end
-end
-
--- Если не нашли - ищем в других местах
-if not meleeEvent then
+local function FindAttackEvents()
     for _, child in pairs(game:GetDescendants()) do
-        if child:IsA("RemoteEvent") and (child.Name:lower():find("melee") or child.Name:lower():find("hit") or child.Name:lower():find("attack")) then
-            meleeEvent = child
-            print("✅ Найден RemoteEvent:", child.Name)
-            break
+        if child:IsA("RemoteEvent") then
+            local name = child.Name:lower()
+            if name:find("melee") or name:find("hit") or name:find("attack") or name:find("damage") or name:find("punch") or name:find("stab") or name:find("kill") then
+                table.insert(AttackEvents, child)
+                print("✅ Найден:", child.Name)
+            end
         end
     end
 end
 
-if not meleeEvent then
+FindAttackEvents()
+
+if #AttackEvents == 0 then
     print("❌ Не найден RemoteEvent для убийства!")
-    print("❌ Скрипт может не работать")
+    print("❌ Попробуй запустить в матче")
 end
 
 -- ============================================================
--- ФУНКЦИЯ УБИЙСТВА
+-- ФУНКЦИЯ УБИЙСТВА (МНОГО УДАРОВ)
 -- ============================================================
 
 local function KillPlayer(player)
     if not player or player == LP then return end
-    if not meleeEvent then return end
+    if #AttackEvents == 0 then return end
     
-    -- Отправляем сигнал об ударе
-    for i = 1, 20 do
-        pcall(function()
-            meleeEvent:FireServer(player)
-        end)
+    print("💀 Атака на:", player.Name)
+    
+    -- Отправляем МНОГО ударов через ВСЕ найденные события
+    for _, event in pairs(AttackEvents) do
+        for i = 1, 50 do  -- 50 ударов через каждое событие
+            pcall(function()
+                event:FireServer(player)
+            end)
+        end
     end
+    
+    -- Дополнительный способ: прямая установка здоровья
+    pcall(function()
+        if player.Character then
+            local hum = player.Character:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.Health = 0
+            end
+        end
+    end)
+    
+    -- Отправляем ещё один тип атаки (если есть)
+    pcall(function()
+        local remote = game:GetService("ReplicatedStorage"):FindFirstChild("meleeEvent")
+        if remote then
+            for i = 1, 50 do
+                remote:FireServer(player)
+            end
+        end
+    end)
     
     print("💀 Убит:", player.Name)
 end
@@ -80,6 +84,11 @@ end
 -- ============================================================
 -- ПОИСК ИГРОКА ПОД МЫШЬЮ
 -- ============================================================
+local mouse = LP:GetMouse()
+if not mouse then
+    print("❌ Не удалось получить мышь!")
+    return
+end
 
 local function GetPlayerUnderMouse()
     if not mouse or not mouse.Target then return nil end
@@ -87,11 +96,9 @@ local function GetPlayerUnderMouse()
     local target = mouse.Target
     if not target then return nil end
     
-    -- Ищем игрока через часть тела
     local character = target
     while character and character.Parent do
         if character:IsA("Model") and character:FindFirstChildOfClass("Humanoid") then
-            -- Проверяем, что это игрок
             for _, player in pairs(Players:GetPlayers()) do
                 if player.Character == character then
                     return player
@@ -105,57 +112,69 @@ local function GetPlayerUnderMouse()
 end
 
 -- ============================================================
--- ОБРАБОТКА КЛИКА ПО ИГРОКУ
+-- КЛИК ПО ИГРОКУ (ЛКМ)
 -- ============================================================
 
 UserInput.InputBegan:Connect(function(input, gp)
     if gp then return end
     
-    -- Клик левой кнопкой мыши
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        local targetPlayer = GetPlayerUnderMouse()
-        if targetPlayer then
-            KillPlayer(targetPlayer)
+        local target = GetPlayerUnderMouse()
+        if target then
+            KillPlayer(target)
         end
     end
 end)
 
 -- ============================================================
--- ВИЗУАЛЬНАЯ ПОДСВЕТКА (чтобы видеть на кого наводишься)
+-- ВИЗУАЛЬНАЯ ПОДСВЕТКА (на кого наводишься)
 -- ============================================================
 
 local Highlight = Instance.new("Highlight")
 Highlight.FillColor = Color3.fromRGB(255, 0, 0)
-Highlight.FillTransparency = 0.3
+Highlight.FillTransparency = 0.2
 Highlight.OutlineColor = Color3.fromRGB(255, 0, 0)
+Highlight.OutlineTransparency = 0
 Highlight.Parent = nil
 
 RunService.RenderStepped:Connect(function()
-    if not mouse then return end
-    
-    local targetPlayer = GetPlayerUnderMouse()
-    if targetPlayer and targetPlayer.Character then
-        Highlight.Parent = targetPlayer.Character
-        Highlight.Enabled = true
+    local target = GetPlayerUnderMouse()
+    if target and target.Character then
+        Highlight.Parent = target.Character
     else
         Highlight.Parent = nil
-        Highlight.Enabled = false
     end
 end)
 
 -- ============================================================
--- УПРАВЛЕНИЕ
+-- ХОТКЕЙ: УБИТЬ ВСЕХ (F3)
+-- ============================================================
+
+UserInput.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    
+    if input.KeyCode == Enum.KeyCode.F3 then
+        print("========================================")
+        print("💀 УБИВАЕМ ВСЕХ ИГРОКОВ!")
+        print("========================================")
+        
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LP then
+                KillPlayer(player)
+            end
+        end
+    end
+end)
+
+-- ============================================================
+-- ЗАПУСК
 -- ============================================================
 
 print("========================================")
-print("✦ PRISON LIFE KILL v1.0 ЗАГРУЖЕН!")
-print("✦ Наведись на игрока и нажми ЛКМ")
-print("✦ Враг будет подсвечен КРАСНЫМ")
+print("✦ PRISON LIFE KILL v2.0 ЗАГРУЖЕН!")
+print("✦ Наведись на игрока → ЛКМ = смерть")
+print("✦ F3 = убить ВСЕХ игроков")
 print("========================================")
-
--- ============================================================
--- ТЕСТ (проверка, что скрипт работает)
--- ============================================================
 
 task.wait(1)
-print("✅ Скрипт работает! Наведись на игрока и кликни")
+print("✅ Готово! Наводись на игроков и кликай!")
