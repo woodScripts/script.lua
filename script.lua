@@ -1,14 +1,16 @@
 -- ============================================================
--- PRISON LIFE ХАБ v3.0
--- Полностью на русском языке
+-- BLOXSTRIKE ХАБ v3.0
+-- Полноценный ESP + меню для BloxStrike
+-- GitHub Version
 -- ============================================================
 
-print("=== ЗАГРУЗКА PRISON LIFE ХАБ ===")
+print("=== ЗАГРУЗКА BLOXSTRIKE ХАБ ===")
 
--- Проверка
+-- Проверка Drawing
 local test = Drawing.new("Square")
 if not test then
     print("❌ Ошибка: Рисование не поддерживается!")
+    print("❌ Используйте Solara, Delta или Xeno")
     return
 end
 test:Remove()
@@ -33,7 +35,7 @@ print("✅ Игра загружена")
 -- МЕНЮ (ГРАФИЧЕСКИЙ ИНТЕРФЕЙС)
 -- ============================================================
 local Экран = Instance.new("ScreenGui")
-Экран.Name = "PrisonLifeHub"
+Экран.Name = "BloxStrikeHub"
 Экран.Parent = Игрок:WaitForChild("PlayerGui")
 Экран.ResetOnSpawn = false
 
@@ -52,8 +54,8 @@ local Окно = Instance.new("Frame")
 local Заголовок = Instance.new("TextLabel")
 Заголовок.Size = UDim2.new(1, 0, 0, 30)
 Заголовок.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-Заголовок.Text = "✦ PRISON LIFE ХАБ v3.0"
-Заголовок.TextColor3 = Color3.fromRGB(0, 191, 255)
+Заголовок.Text = "✦ BLOXSTRIKE ХАБ v3.0"
+Заголовок.TextColor3 = Color3.fromRGB(255, 70, 70)
 Заголовок.Font = Enum.Font.GothamBold
 Заголовок.TextSize = 18
 Заголовок.Parent = Окно
@@ -87,35 +89,37 @@ local Контейнер = Instance.new("Frame")
 Контейнер.Parent = Окно
 
 -- Список вкладок
-local СписокВкладок = {"Основное", "Визуал", "Бой", "Настройки"}
-local ТекущаяВкладка = "Основное"
+local СписокВкладок = {"ESP", "Визуал", "Настройки", "Инфо"}
+local ТекущаяВкладка = "ESP"
 local КнопкиВкладок = {}
 
 -- ============================================================
 -- НАСТРОЙКИ
 -- ============================================================
 local Настройки = {
-    -- Визуал
-    ESP = false,
+    -- ESP
+    ESP_Включен = false,
     ПоказыватьРамку = true,
     ПоказыватьИмя = true,
     ПоказыватьЗдоровье = true,
     ПоказыватьРасстояние = true,
+    ПоказыватьТочку = true,
+    ПоказыватьСкелет = false,
+    ПоказыватьЛинию = false,
+    
+    -- Цвета
     ЦветРамки = {1, 0, 0},
     ЦветИмени = {1, 1, 0},
+    ЦветТочки = {1, 0, 0},
+    ЦветЛинии = {0, 1, 0},
+    
+    -- Визуал
+    ТолщинаРамки = 2,
+    РазмерШрифта = 14,
+    РадиусТочки = 4,
     КругПрицела = false,
     РазмерКруга = 120,
-    
-    -- Движение
-    Ускорение = false,
-    Скорость = 50,
-    Полет = false,
-    Телепорт = false,
-    
-    -- Бой
-    Наведение = false,
-    БесшумноеНаведение = false,
-    РасширениеХитбокса = false,
+    Прозрачность = 0.3,
 }
 
 -- ============================================================
@@ -156,12 +160,19 @@ local function ВЭкран(позиция)
     if not камера then return nil end
     local вектор, наЭкране = камера:WorldToViewportPoint(позиция)
     if наЭкране then
-        return {X = вектор.X, Y = вектор.Y}
+        return {X = вектор.X, Y = вектор.Y, Z = вектор.Z}
     end
     return nil
 end
 
-local function НайтиЧасть(персонаж)
+local function НайтиЧасть(персонаж, имя)
+    if имя then
+        local часть = персонаж:FindFirstChild(имя)
+        if часть and часть:IsA("BasePart") then
+            return часть
+        end
+    end
+    
     local дети = персонаж:GetChildren()
     for i = 1, #дети do
         local часть = дети[i]
@@ -172,18 +183,70 @@ local function НайтиЧасть(персонаж)
     return nil
 end
 
+local function НайтиГолову(персонаж)
+    local голова = персонаж:FindFirstChild("Head")
+    if голова then return голова end
+    
+    local дети = персонаж:GetChildren()
+    for i = 1, #дети do
+        local часть = дети[i]
+        if часть:IsA("BasePart") and string.find(string.lower(часть.Name), "head") then
+            return часть
+        end
+    end
+    return НайтиЧасть(персонаж)
+end
+
+local function НайтиЧастиТела(персонаж)
+    local части = {}
+    local имена = {"Head", "UpperTorso", "Torso", "HumanoidRootPart", 
+                   "LeftArm", "RightArm", "LeftLeg", "RightLeg"}
+    
+    for i = 1, #имена do
+        local часть = персонаж:FindFirstChild(имена[i])
+        if часть and часть:IsA("BasePart") then
+            table.insert(части, часть)
+        end
+    end
+    
+    if #части == 0 then
+        local дети = персонаж:GetChildren()
+        for i = 1, #дети do
+            local часть = дети[i]
+            if часть:IsA("BasePart") then
+                table.insert(части, часть)
+            end
+        end
+    end
+    
+    return части
+end
+
 local function Цвет(r, g, b)
     return Color3.new(r or 1, g or 0, b or 0)
+end
+
+local function Враг(игрок)
+    if игрок == Игрок then return false end
+    
+    -- Проверка команд в BloxStrike
+    local мояКоманда = Игрок.Team
+    local ихКоманда = игрок.Team
+    
+    if мояКоманда and ихКоманда then
+        return мояКоманда ~= ихКоманда
+    end
+    
+    return true
 end
 
 -- ============================================================
 -- СОЗДАНИЕ ЭЛЕМЕНТОВ МЕНЮ
 -- ============================================================
 
--- Переключатель (Вкл/Выкл)
-local function СоздатьПереключатель(название, ключНастройки, действие)
+local function СоздатьПереключатель(название, ключ)
     local рамка = Instance.new("Frame")
-    рамка.Size = UDim2.new(1, 0, 0, 32)
+    рамка.Size = UDim2.new(1, 0, 0, 30)
     рамка.BackgroundTransparency = 1
     рамка.Parent = Контейнер
     
@@ -212,26 +275,22 @@ local function СоздатьПереключатель(название, клю
         состояние = not состояние
         кнопка.BackgroundColor3 = состояние and Color3.fromRGB(0, 180, 0) or Color3.fromRGB(60, 60, 60)
         кнопка.Text = состояние and "ВКЛ" or "ВЫКЛ"
-        if ключНастройки then
-            Настройки[ключНастройки] = состояние
+        if ключ then
+            Настройки[ключ] = состояние
         end
-        if действие then действие(состояние) end
     end)
-    
-    return function() return состояние end
 end
 
--- Ползунок (настройка значения)
-local function СоздатьПолзунок(название, ключНастройки, минимум, максимум, значениеПоУмолчанию, действие)
+local function СоздатьПолзунок(название, ключ, мин, макс, поумолчанию)
     local рамка = Instance.new("Frame")
-    рамка.Size = UDim2.new(1, 0, 0, 32)
+    рамка.Size = UDim2.new(1, 0, 0, 30)
     рамка.BackgroundTransparency = 1
     рамка.Parent = Контейнер
     
     local надпись = Instance.new("TextLabel")
     надпись.Size = UDim2.new(0.5, 0, 1, 0)
     надпись.BackgroundTransparency = 1
-    надпись.Text = название .. ": " .. tostring(значениеПоУмолчанию)
+    надпись.Text = название .. ": " .. tostring(поумолчанию)
     надпись.TextColor3 = Color3.fromRGB(220, 220, 220)
     надпись.TextXAlignment = Enum.TextXAlignment.Left
     надпись.Font = Enum.Font.Gotham
@@ -242,28 +301,24 @@ local function СоздатьПолзунок(название, ключНаст
     кнопка.Size = UDim2.new(0, 120, 0, 24)
     кнопка.Position = UDim2.new(1, -120, 0.5, -12)
     кнопка.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
-    кнопка.Text = tostring(значениеПоУмолчанию)
+    кнопка.Text = tostring(поумолчанию)
     кнопка.TextColor3 = Color3.fromRGB(255, 255, 255)
     кнопка.Font = Enum.Font.GothamBold
     кнопка.TextSize = 12
     кнопка.Parent = рамка
     
-    local значение = значениеПоУмолчанию
+    local значение = поумолчанию
     кнопка.MouseButton1Click:Connect(function()
         значение = значение + 5
-        if значение > максимум then значение = минимум end
+        if значение > макс then значение = мин end
         кнопка.Text = tostring(значение)
         надпись.Text = название .. ": " .. tostring(значение)
-        if ключНастройки then
-            Настройки[ключНастройки] = значение
+        if ключ then
+            Настройки[ключ] = значение
         end
-        if действие then действие(значение) end
     end)
-    
-    return function() return значение end
 end
 
--- Текстовая метка
 local function СоздатьМетку(текст)
     local метка = Instance.new("TextLabel")
     метка.Size = UDim2.new(1, 0, 0, 25)
@@ -272,12 +327,10 @@ local function СоздатьМетку(текст)
     метка.TextColor3 = Color3.fromRGB(200, 200, 200)
     метка.TextXAlignment = Enum.TextXAlignment.Left
     метка.Font = Enum.Font.Gotham
-    метка.TextSize = 14
+    метка.TextSize = 13
     метка.Parent = Контейнер
-    return метка
 end
 
--- Очистка содержимого
 local function ОчиститьКонтейнер()
     for _, ребенок in pairs(Контейнер:GetChildren()) do
         ребенок:Destroy()
@@ -291,55 +344,59 @@ end
 local function ОбновитьСодержимое()
     ОчиститьКонтейнер()
     
-    if ТекущаяВкладка == "Основное" then
-        СоздатьМетку("⚡ ДВИЖЕНИЕ:")
-        СоздатьПереключатель("Увеличенная скорость", "Ускорение", function(вкл)
-            if вкл then
-                Игрок.Character.Humanoid.WalkSpeed = Настройки.Скорость
-            else
-                Игрок.Character.Humanoid.WalkSpeed = 16
-            end
-        end)
-        СоздатьПолзунок("Скорость бега", "Скорость", 20, 200, 50, function(значение)
-            if Настройки.Ускорение then
-                Игрок.Character.Humanoid.WalkSpeed = значение
-            end
-        end)
-        СоздатьПереключатель("Режим полёта", "Полет", function(вкл)
-            if вкл then
-                Игрок.Character.Humanoid.PlatformStand = true
-            else
-                Игрок.Character.Humanoid.PlatformStand = false
-            end
-        end)
-        СоздатьПереключатель("Телепорт (клавиша T)", "Телепорт")
-        
-    elseif ТекущаяВкладка == "Визуал" then
-        СоздатьМетку("👁️ ВИЗУАЛЬНЫЕ ЭФФЕКТЫ:")
-        СоздатьПереключатель("Подсветка игроков (ESP)", "ESP")
+    if ТекущаяВкладка == "ESP" then
+        СоздатьМетку("🔴 ОСНОВНЫЕ НАСТРОЙКИ ESP:")
+        СоздатьПереключатель("Включить ESP", "ESP_Включен")
+        СоздатьМетку("")
+        СоздатьМетку("📦 ЭЛЕМЕНТЫ ESP:")
         СоздатьПереключатель("Рамка вокруг игрока", "ПоказыватьРамку")
         СоздатьПереключатель("Имя над головой", "ПоказыватьИмя")
         СоздатьПереключатель("Полоска здоровья", "ПоказыватьЗдоровье")
         СоздатьПереключатель("Расстояние до игрока", "ПоказыватьРасстояние")
-        СоздатьМетку("")
-        СоздатьПереключатель("Круг прицела (FOV)", "КругПрицела")
-        СоздатьПолзунок("Размер круга", "РазмерКруга", 50, 300, 120)
+        СоздатьПереключатель("Точка на голове", "ПоказыватьТочку")
+        СоздатьПереключатель("Скелет (экспериментально)", "ПоказыватьСкелет")
+        СоздатьПереключатель("Линия к игроку", "ПоказыватьЛинию")
         
-    elseif ТекущаяВкладка == "Бой" then
-        СоздатьМетку("⚔️ БОЕВЫЕ ФУНКЦИИ:")
-        СоздатьПереключатель("Автоматическое наведение", "Наведение")
-        СоздатьПереключатель("Бесшумное наведение", "БесшумноеНаведение")
-        СоздатьПереключатель("Расширение зоны попадания", "РасширениеХитбокса")
+    elseif ТекущаяВкладка == "Визуал" then
+        СоздатьМетку("🎨 ЦВЕТА:")
+        СоздатьМетку("Рамка: КРАСНЫЙ | Имя: ЖЁЛТЫЙ")
+        СоздатьМетку("Точка: КРАСНЫЙ | Линия: ЗЕЛЁНЫЙ")
+        СоздатьМетку("")
+        СоздатьМетку("📐 РАЗМЕРЫ:")
+        СоздатьПолзунок("Толщина рамки", "ТолщинаРамки", 1, 5, 2)
+        СоздатьПолзунок("Размер шрифта", "РазмерШрифта", 10, 20, 14)
+        СоздатьПолзунок("Радиус точки", "РадиусТочки", 2, 10, 4)
+        СоздатьМетку("")
+        СоздатьМетку("🎯 КРУГ ПРИЦЕЛА:")
+        СоздатьПереключатель("Показывать круг", "КругПрицела")
+        СоздатьПолзунок("Размер круга", "РазмерКруга", 50, 300, 120)
+        СоздатьПолзунок("Прозрачность", "Прозрачность", 10, 90, 30)
         
     elseif ТекущаяВкладка == "Настройки" then
-        СоздатьМетку("📌 УПРАВЛЕНИЕ:")
+        СоздатьМетку("⌨️ УПРАВЛЕНИЕ:")
         СоздатьМетку("F1 - Открыть / Закрыть меню")
-        СоздатьМетку("T - Телепорт к ближайшему игроку")
+        СоздатьМетку("F2 - Включить / Выключить ESP")
         СоздатьМетку("")
-        СоздатьМетку("📦 ИНФОРМАЦИЯ:")
-        СоздатьМетку("✦ Prison Life Хаб v3.0")
-        СоздатьМетку("✦ Версия для GitHub")
-        СоздатьМетку("✦ Автор: woodScripts")
+        СоздатьМетку("📌 ИНФОРМАЦИЯ:")
+        СоздатьМетку("✦ Создано специально для BloxStrike")
+        СоздатьМетку("✦ Версия 3.0")
+        СоздатьМетку("✦ GitHub: woodScripts/script.lua")
+        
+    elseif ТекущаяВкладка == "Инфо" then
+        СоздатьМетку("📦 BLOXSTRIKE ХАБ v3.0")
+        СоздатьМетку("")
+        СоздатьМетку("🔹 Что умеет этот скрипт:")
+        СоздатьМетку("  • Подсветка всех игроков (ESP)")
+        СоздатьМетку("  • Рамка, имя, здоровье, дистанция")
+        СоздатьМетку("  • Точка на голове для прицеливания")
+        СоздатьМетку("  • Круг прицела (FOV)")
+        СоздатьМетку("  • Отображение сквозь стены")
+        СоздатьМетку("")
+        СоздатьМетку("🔹 Управление:")
+        СоздатьМетку("  • F1 - Меню")
+        СоздатьМетку("  • F2 - Вкл/Выкл ESP")
+        СоздатьМетку("")
+        СоздатьМетку("⚠️ Используйте на свой страх и риск")
     end
 end
 
@@ -377,12 +434,12 @@ end
 СоздатьВкладки()
 
 -- ============================================================
--- ОСНОВНЫЕ ФУНКЦИИ
+-- ОСНОВНЫЕ ФУНКЦИИ ESP
 -- ============================================================
 
--- Рисование ESP
+-- Главная функция ESP
 local function ОбновитьESP()
-    if not Настройки.ESP then
+    if not Настройки.ESP_Включен then
         Очистить()
         return
     end
@@ -393,78 +450,165 @@ local function ОбновитьESP()
     if not камера then return end
     
     local игроки = Players:GetPlayers()
+    local экран = камера.ViewportSize
     
     for i = 1, #игроки do
         local игрок = игроки[i]
         if игрок ~= Игрок then
             local персонаж = игрок.Character
             if персонаж then
-                local часть = НайтиЧасть(персонаж)
-                if часть then
-                    local позиция = ВЭкран(часть.Position)
-                    if позиция then
-                        local расстояние = (часть.Position - камера.CFrame.Position).Magnitude
-                        local метры = math.floor(расстояние * 0.1)
-                        local масштаб = math.clamp(1 - расстояние / 500, 0.2, 1)
-                        local размер = 70 * масштаб
+                -- Находим центр персонажа
+                local центр = НайтиЧасть(персонаж, "HumanoidRootPart") or НайтиЧасть(персонаж)
+                if not центр then goto продолжение end
+                
+                local позиция = ВЭкран(центр.Position)
+                if not позиция then goto продолжение end
+                
+                local враг = Враг(игрок)
+                local цвет = враг and Цвет(1, 0, 0) or Цвет(0, 0, 1)
+                
+                local расстояние = (центр.Position - камера.CFrame.Position).Magnitude
+                local метры = math.floor(расстояние * 0.1)
+                local масштаб = math.clamp(1 - расстояние / 500, 0.2, 1)
+                local размер = 70 * масштаб
+                
+                -- ===== РАМКА =====
+                if Настройки.ПоказыватьРамку then
+                    -- Основная рамка
+                    Нарисовать("Square", {
+                        Position = Vector2.new(позиция.X - размер/2, позиция.Y - размер/2),
+                        Size = Vector2.new(размер, размер),
+                        Color = цвет,
+                        Thickness = Настройки.ТолщинаРамки,
+                        Filled = false
+                    })
+                    
+                    -- Полупрозрачная заливка
+                    Нарисовать("Square", {
+                        Position = Vector2.new(позиция.X - размер/2 + 4, позиция.Y - размер/2 + 4),
+                        Size = Vector2.new(размер - 8, размер - 8),
+                        Color = цвет,
+                        Thickness = 0,
+                        Filled = true,
+                        Transparency = 0.15
+                    })
+                end
+                
+                -- ===== ИМЯ =====
+                if Настройки.ПоказыватьИмя then
+                    local текст = игрок.Name
+                    if Настройки.ПоказыватьРасстояние then
+                        текст = текст .. " [" .. метры .. " м]"
+                    end
+                    Нарисовать("Text", {
+                        Position = Vector2.new(позиция.X, позиция.Y - размер/2 - 18),
+                        Text = текст,
+                        Color = Настройки.ЦветИмени and Цвет(1, 1, 0) or Цвет(1, 1, 1),
+                        Size = Настройки.РазмерШрифта,
+                        Center = true,
+                        Outline = true,
+                        OutlineColor = Color3.new(0, 0, 0)
+                    })
+                end
+                
+                -- ===== ЗДОРОВЬЕ =====
+                if Настройки.ПоказыватьЗдоровье then
+                    local человек = персонаж:FindFirstChildOfClass("Humanoid")
+                    if человек then
+                        local здоровье = math.floor(человек.Health)
+                        local максЗдоровье = человек.MaxHealth
+                        local отношение = math.clamp(здоровье / максЗдоровье, 0, 1)
                         
-                        if Настройки.ПоказыватьРамку then
-                            Нарисовать("Square", {
-                                Position = Vector2.new(позиция.X - размер/2, позиция.Y - размер/2),
-                                Size = Vector2.new(размер, размер),
-                                Color = Цвет(Настройки.ЦветРамки[1], Настройки.ЦветРамки[2], Настройки.ЦветРамки[3]),
-                                Thickness = 2,
-                                Filled = false
+                        local ширинаПолоски = размер
+                        local xПолоски = позиция.X - ширинаПолоски / 2
+                        local yПолоски = позиция.Y + размер/2 + 5
+                        
+                        -- Фон полоски
+                        Нарисовать("Square", {
+                            Position = Vector2.new(xПолоски, yПолоски),
+                            Size = Vector2.new(ширинаПолоски, 5),
+                            Color = Color3.new(0, 0, 0),
+                            Thickness = 1,
+                            Filled = true,
+                            Transparency = 0.5
+                        })
+                        
+                        -- Заполнение
+                        Нарисовать("Square", {
+                            Position = Vector2.new(xПолоски + 2, yПолоски + 2),
+                            Size = Vector2.new((ширинаПолоски - 4) * отношение, 1),
+                            Color = Color3.new(1 - отношение, отношение, 0),
+                            Thickness = 0,
+                            Filled = true
+                        })
+                        
+                        -- Текст здоровья
+                        Нарисовать("Text", {
+                            Position = Vector2.new(позиция.X, yПолоски + 14),
+                            Text = здоровье .. "/" .. максЗдоровье,
+                            Color = Color3.new(1, 1, 1),
+                            Size = 10,
+                            Center = true,
+                            Outline = true,
+                            OutlineColor = Color3.new(0, 0, 0)
+                        })
+                    end
+                end
+                
+                -- ===== ТОЧКА НА ГОЛОВЕ =====
+                if Настройки.ПоказыватьТочку then
+                    local голова = НайтиГолову(персонаж)
+                    if голова then
+                        local позицияГоловы = ВЭкран(голова.Position)
+                        if позицияГоловы then
+                            Нарисовать("Circle", {
+                                Position = Vector2.new(позицияГоловы.X, позицияГоловы.Y),
+                                Radius = Настройки.РадиусТочки,
+                                Color = Настройки.ЦветТочки and Цвет(1, 0, 0) or цвет,
+                                Filled = true
                             })
                         end
-                        
-                        if Настройки.ПоказыватьИмя then
-                            local текст = игрок.Name
-                            if Настройки.ПоказыватьРасстояние then
-                                текст = текст .. " [" .. метры .. " м]"
-                            end
-                            Нарисовать("Text", {
-                                Position = Vector2.new(позиция.X, позиция.Y - размер/2 - 18),
-                                Text = текст,
-                                Color = Цвет(Настройки.ЦветИмени[1], Настройки.ЦветИмени[2], Настройки.ЦветИмени[3]),
-                                Size = 14,
-                                Center = true,
-                                Outline = true,
-                                OutlineColor = Color3.new(0, 0, 0)
-                            })
-                        end
-                        
-                        if Настройки.ПоказыватьЗдоровье then
-                            local человек = персонаж:FindFirstChildOfClass("Humanoid")
-                            if человек then
-                                local здоровье = math.floor(человек.Health)
-                                local максЗдоровье = человек.MaxHealth
-                                local отношение = math.clamp(здоровье / максЗдоровье, 0, 1)
-                                
-                                local ширинаПолоски = размер
-                                local xПолоски = позиция.X - ширинаПолоски / 2
-                                local yПолоски = позиция.Y + размер/2 + 5
-                                
-                                Нарисовать("Square", {
-                                    Position = Vector2.new(xПолоски, yПолоски),
-                                    Size = Vector2.new(ширинаПолоски, 5),
-                                    Color = Color3.new(0, 0, 0),
-                                    Thickness = 1,
-                                    Filled = true,
-                                    Transparency = 0.5
-                                })
-                                
-                                Нарисовать("Square", {
-                                    Position = Vector2.new(xПолоски + 2, yПолоски + 2),
-                                    Size = Vector2.new((ширинаПолоски - 4) * отношение, 1),
-                                    Color = Color3.new(1 - отношение, отношение, 0),
-                                    Thickness = 0,
-                                    Filled = true
-                                })
+                    end
+                end
+                
+                -- ===== ЛИНИЯ К ИГРОКУ =====
+                if Настройки.ПоказыватьЛинию then
+                    local центрЭкрана = Vector2.new(экран.X / 2, экран.Y)
+                    Нарисовать("Line", {
+                        From = центрЭкрана,
+                        To = Vector2.new(позиция.X, позиция.Y),
+                        Color = Настройки.ЦветЛинии and Цвет(0, 1, 0) or цвет,
+                        Thickness = 1
+                    })
+                end
+                
+                -- ===== СКЕЛЕТ =====
+                if Настройки.ПоказыватьСкелет then
+                    local части = НайтиЧастиТела(персонаж)
+                    for j = 1, #части do
+                        for k = j + 1, #части do
+                            local ч1, ч2 = части[j], части[k]
+                            if ч1 and ч2 then
+                                local п1 = ВЭкран(ч1.Position)
+                                local п2 = ВЭкран(ч2.Position)
+                                if п1 and п2 then
+                                    local расстояниеМежду = (ч1.Position - ч2.Position).Magnitude
+                                    if расстояниеМежду < 15 then
+                                        Нарисовать("Line", {
+                                            From = Vector2.new(п1.X, п1.Y),
+                                            To = Vector2.new(п2.X, п2.Y),
+                                            Color = Цвет(1, 1, 1),
+                                            Thickness = 1,
+                                            Transparency = 0.5
+                                        })
+                                    end
+                                end
                             end
                         end
                     end
                 end
+                
+                ::продолжение::
             end
         end
     end
@@ -482,95 +626,8 @@ local function ОбновитьКруг()
     кругПрицела.Position = Vector2.new(экран.X / 2, экран.Y / 2)
     кругПрицела.Radius = Настройки.РазмерКруга
     кругПрицела.Color = Цвет(0, 1, 1)
-    кругПрицела.Transparency = 0.5
+    кругПрицела.Transparency = Настройки.Прозрачность / 100
     кругПрицела.Visible = Настройки.КругПрицела
-end
-
--- Режим полёта
-local function ОбновитьПолет()
-    if not Настройки.Полет then return end
-    
-    local персонаж = Игрок.Character
-    if not персонаж then return end
-    
-    local корень = персонаж:FindFirstChild("HumanoidRootPart")
-    if not корень then return end
-    
-    local вперед = Камера.CFrame.LookVector * 2
-    local вправо = Камера.CFrame.RightVector * 2
-    local вверх = Vector3.new(0, 1, 0) * 2
-    
-    if UserInput:IsKeyDown(Enum.KeyCode.W) then
-        корень.Velocity = вперед * 30
-    elseif UserInput:IsKeyDown(Enum.KeyCode.S) then
-        корень.Velocity = -вперед * 30
-    elseif UserInput:IsKeyDown(Enum.KeyCode.A) then
-        корень.Velocity = -вправо * 30
-    elseif UserInput:IsKeyDown(Enum.KeyCode.D) then
-        корень.Velocity = вправо * 30
-    elseif UserInput:IsKeyDown(Enum.KeyCode.Space) then
-        корень.Velocity = вверх * 30
-    elseif UserInput:IsKeyDown(Enum.KeyCode.LeftShift) then
-        корень.Velocity = -вверх * 30
-    else
-        корень.Velocity = Vector3.new(0, 0, 0)
-    end
-end
-
--- Телепорт к ближайшему игроку
-local function Телепортироваться()
-    if not Настройки.Телепорт then return end
-    
-    local персонаж = Игрок.Character
-    if not персонаж then return end
-    
-    local корень = персонаж:FindFirstChild("HumanoidRootPart")
-    if not корень then return end
-    
-    local ближайший, расстояние = nil, math.huge
-    for _, игрок in pairs(Players:GetPlayers()) do
-        if игрок ~= Игрок and игрок.Character then
-            local цель = игрок.Character:FindFirstChild("HumanoidRootPart")
-            if цель then
-                local дистанция = (корень.Position - цель.Position).Magnitude
-                if дистанция < расстояние then
-                    ближайший = цель
-                    расстояние = дистанция
-                end
-            end
-        end
-    end
-    
-    if ближайший then
-        корень.CFrame = ближайший.CFrame + Vector3.new(0, 2, 0)
-    end
-end
-
--- Наведение на ближайшего игрока
-local function НайтиБлижайшего()
-    if not Настройки.Наведение then return nil end
-    
-    local персонаж = Игрок.Character
-    if not персонаж then return nil end
-    
-    local корень = персонаж:FindFirstChild("HumanoidRootPart")
-    if not корень then return nil end
-    
-    local ближайший, расстояние = nil, math.huge
-    for _, игрок in pairs(Players:GetPlayers()) do
-        if игрок ~= Игрок and игрок.Character then
-            local цель = игрок.Character:FindFirstChild("HumanoidRootPart")
-            if цель then
-                local дистанция = (корень.Position - цель.Position).Magnitude
-                if дистанция < расстояние then
-                    ближайший = цель
-                    расстояние = дистанция
-                end
-            end
-        end
-    end
-    
-    return ближайший
 end
 
 -- ============================================================
@@ -584,8 +641,9 @@ UserInput.InputBegan:Connect(function(ввод, обработано)
         Окно.Visible = not Окно.Visible
     end
     
-    if ввод.KeyCode == Enum.KeyCode.T then
-        Телепортироваться()
+    if ввод.KeyCode == Enum.KeyCode.F2 then
+        Настройки.ESP_Включен = not Настройки.ESP_Включен
+        print("ESP:", Настройки.ESP_Включен and "ВКЛЮЧЕН ✅" or "ВЫКЛЮЧЕН ❌")
     end
 end)
 
@@ -594,21 +652,15 @@ end)
 -- ============================================================
 
 print("========================================")
-print("✦ PRISON LIFE ХАБ v3.0 ЗАГРУЖЕН!")
+print("✦ BLOXSTRIKE ХАБ v3.0 ЗАГРУЖЕН!")
 print("✦ F1 - Открыть / Закрыть меню")
-print("✦ T - Телепорт к игроку")
+print("✦ F2 - Включить / Выключить ESP")
 print("========================================")
 
 -- Главный цикл
 RunService.RenderStepped:Connect(function()
     ОбновитьESP()
     ОбновитьКруг()
-    ОбновитьПолет()
-    
-    local цель = НайтиБлижайшего()
-    if цель and Настройки.Наведение then
-        Камера.CFrame = CFrame.new(Камера.CFrame.Position, цель.Position)
-    end
 end)
 
 -- Первоначальное обновление
@@ -625,6 +677,7 @@ if тест then
     тест.Transparency = 0.3
     тест.ZIndex = 999
     print("🟢 Тестовый квадрат в левом верхнем углу!")
+    print("🟢 Если видите его - всё работает!")
     task.wait(3)
     тест:Remove()
 end
